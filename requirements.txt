@@ -1,0 +1,37 @@
+# Chanda-Melodic Sanskrit Recitation Engine
+# Install with: pip install -r requirements.txt
+
+# Core
+numpy>=1.24.0
+
+# Transliteration
+indic-transliteration>=2.3.0
+
+# TTS (espeak-ng must be installed separately at system level)
+# Linux:   sudo apt-get install espeak-ng
+# macOS:   brew install espeak-ng
+# Windows: https://github.com/espeak-ng/espeak-ng/releases
+
+# Audio processing
+soundfile>=0.12.1
+pydub>=0.25.1
+librosa>=0.10.2
+
+# Prosody manipulation (Praat Python bindings)
+praat-parselmouth>=0.4.3
+
+# Visualization
+matplotlib>=3.7.0
+
+# API layer (for FastAPI wrapper)
+fastapi>=0.110.0
+pydantic>=2.6.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# UI
+gradio>=4.26.0
+requests>=2.31.0
+
+# Dev / testing
+pytest>=7.4.0
