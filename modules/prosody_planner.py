@@ -9,9 +9,12 @@ Two melodic models:
   2. Rāga Bhairavī: Ārohā-avarohā contour mapping
 """
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
-from .syllabifier import Syllable
+from .syllabifier import Syllable, Syllabifier
+from .transliterator import Transliterator
 
 
 # ── Data structures ────────────────────────────────────────────────────────────
@@ -53,6 +56,12 @@ class ProsodyPlanner:
                            Female: ~220Hz, Male: ~120Hz, Neutral default: 200Hz
         """
         self.base_pitch = base_pitch_hz
+        self._transliterator = Transliterator()
+        self._syllabifier = Syllabifier()
+
+        patterns_path = Path(__file__).resolve().parent.parent / 'data' / 'chanda_patterns.json'
+        with open(patterns_path, 'r', encoding='utf-8') as f:
+            self._chanda_patterns = json.load(f)
 
     def plan(
         self,
@@ -267,46 +276,67 @@ class ProsodyPlanner:
         - mandakranta: conceptual mid-pada pauses with comma and danda at pada end
         - shardulavikridita: pause after syllable 12, then pada end
         """
-        text = original_devanagari.strip()
+        normalized = original_devanagari.strip().replace('॥', '।').replace('।।', '।')
+        words = normalized.split()
+        if not words:
+            return normalized
 
-        if chanda == 'anushtubh':
-            # Preserve existing danda if already present.
-            normalized = text.replace('॥', '।').replace('।।', '।')
-            if '।' in normalized:
-                return normalized
+        chanda_info = self._chanda_patterns.get(chanda, {})
+        yati_in_pada = chanda_info.get('yati_positions_in_pada')
+        pada_size = chanda_info.get('syllables_per_pada')
 
-            words = normalized.split()
-            if not words:
-                return normalized
-            mid = len(words) // 2
-            words.insert(mid, '।')
-            return ' '.join(words)
+        if not isinstance(yati_in_pada, list) or not isinstance(pada_size, int):
+            return self._fallback_yati_marking(normalized, words)
 
-        if chanda == 'mandakranta':
-            normalized = text.replace('॥', '।').replace('।।', '।')
-            if '।' in normalized:
-                return normalized
-            words = normalized.split()
-            if len(words) < 3:
-                return normalized
-            first = max(1, len(words) // 3)
-            second = max(first + 1, (2 * len(words)) // 3)
-            marked = words[:]
-            marked.insert(first, ',')
-            marked.insert(second + 1, ',')
-            marked.append('।')
-            return ' '.join(marked)
+        try:
+            iast = self._transliterator.to_iast(normalized)
+            syllables = self._syllabifier.syllabify_verse(iast)
+        except Exception:
+            return self._fallback_yati_marking(normalized, words)
 
-        if chanda == 'shardulavikridita':
-            normalized = text.replace('॥', '।').replace('।।', '।')
-            if '।' in normalized:
-                return normalized
-            words = normalized.split()
-            if len(words) < 2:
-                return normalized
-            split_idx = max(1, int(len(words) * 0.7))
-            words.insert(split_idx, ',')
-            words.append('।')
-            return ' '.join(words)
+        if not syllables:
+            return normalized
 
-        return text
+        comma_before_words: set[int] = set()
+        danda_before_words: set[int] = set()
+
+        for idx in range(1, len(syllables)):
+            pos_in_pada = idx % pada_size
+            if pos_in_pada == 0:
+                pos_in_pada = pada_size
+
+            prev_syl = syllables[idx - 1]
+            next_syl = syllables[idx]
+            if prev_syl.word_index == next_syl.word_index:
+                continue
+
+            boundary_word = next_syl.word_index
+            if pos_in_pada == pada_size:
+                danda_before_words.add(boundary_word)
+            elif pos_in_pada in yati_in_pada:
+                comma_before_words.add(boundary_word)
+
+        marked_words = []
+        for word_idx, word in enumerate(words):
+            if word_idx in danda_before_words:
+                marked_words.append('।')
+            elif word_idx in comma_before_words:
+                marked_words.append(',')
+            marked_words.append(word)
+
+        if marked_words and marked_words[-1] != '।':
+            marked_words.append('।')
+
+        return ' '.join(marked_words)
+
+    def _fallback_yati_marking(self, normalized: str, words: list[str]) -> str:
+        if '।' in normalized:
+            return normalized
+
+        if len(words) < 2:
+            return normalized
+
+        mid = len(words) // 2
+        marked = words[:]
+        marked.insert(mid, '।')
+        return ' '.join(marked)

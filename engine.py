@@ -33,6 +33,7 @@ from modules.syllabifier import Syllabifier, Syllable
 from modules.prosody_planner import ProsodyPlanner, PlannedSyllable
 from modules.tts_engine import TTSEngine
 from modules.prosody_modifier import ProsodyModifier
+from modules.stt_validator import STTValidator
 
 
 # ── Result container ───────────────────────────────────────────────────────────
@@ -41,9 +42,12 @@ from modules.prosody_modifier import ProsodyModifier
 class RecitationResult:
     verse_iast: str
     chanda: str
+    chanda_type: str
+    chanda_variant: Optional[str]
     melodic_mode: str
     syllables: list[Syllable]
     planned: list[PlannedSyllable]
+    ganas: list[dict]
     audio_path: str
     raw_audio_path: Optional[str]
     annotation: str             # Human-readable L/G table
@@ -53,6 +57,8 @@ class RecitationResult:
     chanda_valid: bool
     chanda_violations: list[str]
     chanda_score: float
+    stt_transcript: Optional[str] = None
+    stt_accuracy: Optional[float] = None
     visualization_path: Optional[str] = None
 
 
@@ -123,33 +129,16 @@ class ChandaEngine:
 
         # ── Step 2: Syllabify + classify L/G ──────────────────────────────
         syllables = self.syllabifier.syllabify_verse(iast)
+        ganas = self.syllabifier.group_into_ganas(syllables)
 
         # ── Step 3: Validate against Chanda ───────────────────────────────
-        chanda_info     = self._chanda_patterns[chanda]
-        pada_size       = chanda_info['syllables_per_pada']
-        padas           = self.syllabifier.split_into_padas(syllables, pada_size)
-        all_violations  = []
-        all_valid       = True
-        total_score     = 0.0
-
-        for pada_idx, pada in enumerate(padas):
-            # Anushtubh: odd pādas use odd pattern, even use even pattern
-            if 'odd' in chanda_info['patterns']:
-                pattern_key = 'odd' if (pada_idx + 1) % 2 == 1 else 'even'
-                pattern = chanda_info['patterns'][pattern_key]
-            else:
-                pattern = chanda_info['patterns']['all']
-
-            validation = self.syllabifier.validate_against_chanda(
-                pada, pattern, pada_size
-            )
-            if not validation['valid']:
-                all_valid = False
-                for v in validation['violations']:
-                    all_violations.append(f"Pāda {pada_idx+1}: {v}")
-            total_score += validation['match_score']
-
-        chanda_score = total_score / max(len(padas), 1)
+        chanda_info = self._chanda_patterns[chanda]
+        eval_result = self._evaluate_chanda_on_syllables(syllables, chanda)
+        all_valid = eval_result['valid']
+        all_violations = eval_result['violations']
+        chanda_score = eval_result['score']
+        chanda_variant = eval_result['variant']
+        chanda_type = chanda_info.get('type', 'akshara_gana')
 
         # ── Step 4: Plan prosody ───────────────────────────────────────────
         planned = self.prosody_planner.plan(syllables, melodic_mode, chanda)
@@ -185,13 +174,30 @@ class ChandaEngine:
         except Exception as e:
             print(f"[ChandaEngine] Visualization failed (non-critical): {e}")
 
+        # ── Non-critical STT validation ────────────────────────────────────
+        stt_transcript = None
+        stt_accuracy = None
+        try:
+            validator = STTValidator(
+                api_key=os.getenv('SARVAM_API_KEY')
+            )
+            transcript = validator.transcribe(audio_path)
+            accuracy = validator.compute_accuracy(verse, transcript)
+            stt_transcript = accuracy['transcribed']
+            stt_accuracy = accuracy['char_match_score']
+        except Exception as e:
+            print(f"[STT] Validation failed (non-critical): {e}")
+
         # ── Build result ───────────────────────────────────────────────────
         return RecitationResult(
             verse_iast=iast,
             chanda=chanda,
+            chanda_type=chanda_type,
+            chanda_variant=chanda_variant,
             melodic_mode=melodic_mode,
             syllables=syllables,
             planned=planned,
+            ganas=ganas,
             audio_path=audio_path,
             raw_audio_path=raw_audio,
             annotation=self.syllabifier.annotated_display(syllables),
@@ -201,6 +207,8 @@ class ChandaEngine:
             chanda_valid=all_valid,
             chanda_violations=all_violations,
             chanda_score=round(chanda_score, 3),
+            stt_transcript=stt_transcript,
+            stt_accuracy=stt_accuracy,
             visualization_path=viz_path
         )
 
@@ -310,16 +318,124 @@ class ChandaEngine:
         """
         iast = self.transliterator.to_iast(verse)
         syllables = self.syllabifier.syllabify_verse(iast)
+        evaluation = self._evaluate_chanda_on_syllables(syllables, chanda)
         return {
             'iast': iast,
             'syllables': syllables,
+            'ganas': self.syllabifier.group_into_ganas(syllables),
             'lg_string': self.syllabifier.get_lg_string(syllables),
             'annotation': self.syllabifier.annotated_display(syllables),
-            'syllable_count': len(syllables)
+            'syllable_count': len(syllables),
+            'chanda_valid': evaluation['valid'],
+            'chanda_score': evaluation['score'],
+            'chanda_violations': evaluation['violations'],
+            'chanda_variant': evaluation['variant'],
+            'chanda_detection': self.detect_chanda(syllables)
         }
 
-    def list_supported_chandas(self) -> list[str]:
-        return list(self._chanda_patterns.keys())
+    def _evaluate_chanda_on_syllables(self, syllables: list[Syllable], chanda: str) -> dict:
+        chanda_info = self._chanda_patterns[chanda]
+        chanda_type = chanda_info.get('type', 'akshara_gana')
+        pada_size = chanda_info.get('syllables_per_pada')
+
+        if chanda_type == 'matra_vritta' or pada_size == 'variable':
+            expected_matras = chanda_info.get('matras_per_pada', [])
+            expected_total = sum(expected_matras) if isinstance(expected_matras, list) else 0
+            actual_total = self._matra_count(syllables)
+            if expected_total > 0:
+                delta = abs(actual_total - expected_total)
+                score = max(0.0, 1.0 - (delta / expected_total))
+            else:
+                score = 1.0
+            return {
+                'valid': True,
+                'violations': [],
+                'score': round(score, 3),
+                'variant': None,
+            }
+
+        if not isinstance(pada_size, int):
+            return {
+                'valid': False,
+                'violations': [f"Unsupported syllables_per_pada: {pada_size}"],
+                'score': 0.0,
+                'variant': None,
+            }
+
+        padas = self.syllabifier.split_into_padas(syllables, pada_size)
+        all_violations: list[str] = []
+        all_valid = True
+        total_score = 0.0
+        matched_variants: list[str] = []
+
+        for pada_idx, pada in enumerate(padas):
+            if 'odd' in chanda_info['patterns']:
+                pattern_key = 'odd' if (pada_idx + 1) % 2 == 1 else 'even'
+                pattern = chanda_info['patterns'][pattern_key]
+            else:
+                pattern_key = 'all'
+                pattern = chanda_info['patterns']['all']
+
+            vipula_variants = None
+            if pattern_key == 'odd' and 'vipula_variants' in chanda_info:
+                vipula_variants = chanda_info['vipula_variants']
+
+            validation = self.syllabifier.validate_against_chanda(
+                pada,
+                pattern,
+                pada_size,
+                vipula_variants=vipula_variants,
+                strict_syllable_count=True,
+            )
+
+            if validation.get('matched_variant'):
+                matched_variants.append(validation['matched_variant'])
+
+            if not validation['valid']:
+                all_valid = False
+                for v in validation['violations']:
+                    all_violations.append(f"Pāda {pada_idx+1}: {v}")
+            total_score += validation['match_score']
+
+        variant = ', '.join(sorted(set(matched_variants))) if matched_variants else None
+        score = total_score / max(len(padas), 1)
+
+        return {
+            'valid': all_valid,
+            'violations': all_violations,
+            'score': round(score, 3),
+            'variant': variant,
+        }
+
+    def _matra_count(self, syllables: list[Syllable]) -> int:
+        return sum(2 if s.weight == 'G' else 1 for s in syllables)
+
+    def detect_chanda(self, syllables: list[Syllable]) -> list[dict]:
+        matches = []
+        for chanda_id, info in self._chanda_patterns.items():
+            evaluation = self._evaluate_chanda_on_syllables(syllables, chanda_id)
+            matches.append(
+                {
+                    'chanda': chanda_id,
+                    'score': evaluation['score'],
+                    'name': info.get('name', chanda_id),
+                }
+            )
+
+        matches.sort(key=lambda x: x['score'], reverse=True)
+        return matches[:3]
+
+    def list_supported_chandas(self) -> list[dict]:
+        return [
+            {
+                'chanda': key,
+                'name': info.get('name', key),
+                'type': info.get('type', 'akshara_gana'),
+                'syllables_per_pada': info.get('syllables_per_pada'),
+                'notes': info.get('notes', ''),
+            }
+            for key, info in self._chanda_patterns.items()
+        ]
 
     def list_supported_modes(self) -> list[str]:
         return ['vedic', 'raga_bhairavi']

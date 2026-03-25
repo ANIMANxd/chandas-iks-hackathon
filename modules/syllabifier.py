@@ -48,6 +48,17 @@ CONSONANTS = [
     's', 'h', 'ḻ'
 ]
 
+GANA_PATTERNS = {
+    'ma': 'GGG',
+    'na': 'LLL',
+    'bha': 'GLL',
+    'ya': 'LGG',
+    'ra': 'GLG',
+    'sa': 'LLG',
+    'ta': 'GGL',
+    'ja': 'LGL',
+}
+
 # ── Data structures ────────────────────────────────────────────────────────────
 
 @dataclass
@@ -291,7 +302,9 @@ class Syllabifier:
         self,
         syllables: list[Syllable],
         chanda_pattern: list[Optional[str]],
-        pada_size: int
+        pada_size: int,
+        vipula_variants: Optional[dict[str, list[Optional[str]]]] = None,
+        strict_syllable_count: bool = True
     ) -> dict:
         """
         Validate a pāda's L/G sequence against the expected Chanda pattern.
@@ -305,24 +318,68 @@ class Syllabifier:
         Returns:
             {valid: bool, violations: list[str], match_score: float}
         """
+        base_result = self._score_pattern(
+            syllables=syllables,
+            chanda_pattern=chanda_pattern,
+            pada_size=pada_size,
+            strict_syllable_count=strict_syllable_count,
+        )
+
+        best_result = base_result
+        matched_variant = None
+
+        if vipula_variants and not base_result['valid']:
+            for variant_name, variant_pattern in vipula_variants.items():
+                candidate = self._score_pattern(
+                    syllables=syllables,
+                    chanda_pattern=variant_pattern,
+                    pada_size=pada_size,
+                    strict_syllable_count=strict_syllable_count,
+                )
+                if candidate['match_score'] > best_result['match_score']:
+                    best_result = candidate
+                    matched_variant = variant_name
+                elif candidate['valid'] and not best_result['valid']:
+                    best_result = candidate
+                    matched_variant = variant_name
+
+            if matched_variant and best_result['valid']:
+                best_result['violations'] = []
+            elif matched_variant and not best_result['valid']:
+                best_result['violations'].append(
+                    f"Best vipula variant: {matched_variant}"
+                )
+
+        best_result['matched_variant'] = matched_variant
+        return best_result
+
+    def _score_pattern(
+        self,
+        syllables: list[Syllable],
+        chanda_pattern: list[Optional[str]],
+        pada_size: int,
+        strict_syllable_count: bool
+    ) -> dict:
         violations = []
 
-        if len(syllables) != pada_size:
+        if strict_syllable_count and len(syllables) != pada_size:
             violations.append(
                 f"Expected {pada_size} syllables, got {len(syllables)}"
             )
 
+        mismatches = 0
         for i, (syl, expected) in enumerate(zip(syllables, chanda_pattern)):
             if expected is None:
-                continue    # free position
+                continue
             if syl.weight != expected:
+                mismatches += 1
                 violations.append(
                     f"Position {i+1}: expected {expected}, got {syl.weight} "
                     f"('{syl.text}')"
                 )
 
         constrained = sum(1 for e in chanda_pattern if e is not None)
-        matched = constrained - len(violations)
+        matched = constrained - mismatches
         score = matched / constrained if constrained > 0 else 1.0
 
         return {
@@ -361,3 +418,28 @@ class Syllabifier:
                 f"{syl.position:>4}  {syl.text:<12}  {syl.weight:>3}  {syl.reason}"
             )
         return '\n'.join(lines)
+
+    def group_into_ganas(self, syllables: list[Syllable]) -> list[dict]:
+        ganas = []
+        for i in range(0, len(syllables), 3):
+            group = syllables[i:i + 3]
+            if len(group) < 3:
+                break
+
+            pattern = ''.join(s.weight for s in group)
+            name = next(
+                (k for k, v in GANA_PATTERNS.items() if v == pattern),
+                'mixed'
+            )
+
+            ganas.append(
+                {
+                    'position': i // 3 + 1,
+                    'syllables': [s.text for s in group],
+                    'pattern': pattern,
+                    'gana_name': name,
+                    'display': f"{'+'.join(s.text for s in group)} = {pattern} = {name} gana",
+                }
+            )
+
+        return ganas

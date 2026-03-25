@@ -22,7 +22,7 @@ import json
 import time
 import uuid
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -83,11 +83,11 @@ class ReciteRequest(BaseModel):
         description="Sanskrit verse in Devanāgarī or IAST",
         example="धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः"
     )
-    chanda: Literal["anushtubh", "mandakranta"] = Field(
+    chanda: str = Field(
         default="anushtubh",
         description="Metrical framework to apply"
     )
-    melodic_mode: Literal["vedic", "raga_bhairavi"] = Field(
+    melodic_mode: str = Field(
         default="vedic",
         description="Melodic/pitch framework to apply"
     )
@@ -100,7 +100,7 @@ class ReciteRequest(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     verse: str = Field(..., description="Sanskrit verse in Devanāgarī or IAST")
-    chanda: Literal["anushtubh", "mandakranta"] = Field(default="anushtubh")
+    chanda: str = Field(default="anushtubh")
 
 class SyllableOut(BaseModel):
     position: int
@@ -120,14 +120,19 @@ class ReciteResponse(BaseModel):
     request_id: str
     verse_iast: str
     chanda: str
+    chanda_type: str
+    chanda_variant: Optional[str]
     melodic_mode: str
     syllable_count: int
     lg_string: str
+    ganas: list[dict]
     syllables: list[SyllableOut]
     planned: list[PlannedOut]
     chanda_valid: bool
     chanda_score: float
     chanda_violations: list[str]
+    stt_transcript: Optional[str]
+    stt_accuracy: Optional[float]
     total_duration_ms: float
     audio_url: str
     raw_audio_url: Optional[str]
@@ -139,12 +144,16 @@ class ReciteResponse(BaseModel):
 class AnalyzeResponse(BaseModel):
     verse_iast: str
     chanda: str
+    chanda_type: str
+    chanda_variant: Optional[str]
     syllable_count: int
     lg_string: str
+    ganas: list[dict]
     syllables: list[SyllableOut]
     chanda_valid: bool
     chanda_score: float
     chanda_violations: list[str]
+    chanda_detection: list[dict]
     annotation: str
 
 
@@ -221,9 +230,12 @@ async def recite(req: ReciteRequest, background_tasks: BackgroundTasks):
         request_id=request_id,
         verse_iast=result.verse_iast,
         chanda=result.chanda,
+        chanda_type=result.chanda_type,
+        chanda_variant=result.chanda_variant,
         melodic_mode=result.melodic_mode,
         syllable_count=len(result.syllables),
         lg_string=result.lg_string,
+        ganas=result.ganas,
         syllables=[
             SyllableOut(
                 position=s.position,
@@ -247,6 +259,8 @@ async def recite(req: ReciteRequest, background_tasks: BackgroundTasks):
         chanda_valid=result.chanda_valid,
         chanda_score=result.chanda_score,
         chanda_violations=result.chanda_violations,
+        stt_transcript=result.stt_transcript,
+        stt_accuracy=result.stt_accuracy,
         total_duration_ms=result.total_duration_ms,
         audio_url=audio_url,
         raw_audio_url=raw_url,
@@ -269,37 +283,22 @@ async def analyze(req: AnalyzeRequest):
     try:
         iast = _engine.transliterator.to_iast(req.verse)
         syllables = _engine.syllabifier.syllabify_verse(iast)
-
         chanda_info = _engine._chanda_patterns.get(req.chanda)
         if not chanda_info:
             raise HTTPException(400, f"Unknown Chanda: {req.chanda}")
 
-        pada_size = chanda_info["syllables_per_pada"]
-        padas = _engine.syllabifier.split_into_padas(syllables, pada_size)
-
-        all_violations = []
-        total_score = 0.0
-        all_valid = True
-
-        for pada_idx, pada in enumerate(padas):
-            if "odd" in chanda_info["patterns"]:
-                key = "odd" if (pada_idx + 1) % 2 == 1 else "even"
-                pattern = chanda_info["patterns"][key]
-            else:
-                pattern = chanda_info["patterns"]["all"]
-
-            val = _engine.syllabifier.validate_against_chanda(pada, pattern, pada_size)
-            if not val["valid"]:
-                all_valid = False
-                for v in val["violations"]:
-                    all_violations.append(f"Pāda {pada_idx+1}: {v}")
-            total_score += val["match_score"]
+        evaluation = _engine._evaluate_chanda_on_syllables(syllables, req.chanda)
+        detection = _engine.detect_chanda(syllables)
+        ganas = _engine.syllabifier.group_into_ganas(syllables)
 
         return AnalyzeResponse(
             verse_iast=iast,
             chanda=req.chanda,
+            chanda_type=chanda_info.get('type', 'akshara_gana'),
+            chanda_variant=evaluation['variant'],
             syllable_count=len(syllables),
             lg_string=_engine.syllabifier.get_lg_string(syllables),
+            ganas=ganas,
             syllables=[
                 SyllableOut(
                     position=s.position,
@@ -309,9 +308,10 @@ async def analyze(req: AnalyzeRequest):
                 )
                 for s in syllables
             ],
-            chanda_valid=all_valid,
-            chanda_score=round(total_score / max(len(padas), 1), 3),
-            chanda_violations=all_violations,
+            chanda_valid=evaluation['valid'],
+            chanda_score=evaluation['score'],
+            chanda_violations=evaluation['violations'],
+            chanda_detection=detection,
             annotation=_engine.syllabifier.annotated_display(syllables)
         )
 
@@ -326,15 +326,7 @@ async def list_chandas():
     """List all supported Chandas with metadata."""
     if not _engine:
         raise HTTPException(503, "Engine not initialized")
-    patterns = _engine._chanda_patterns
-    return {
-        name: {
-            "name": info["name"],
-            "syllables_per_pada": info["syllables_per_pada"],
-            "notes": info.get("notes", "")
-        }
-        for name, info in patterns.items()
-    }
+    return {"chandas": _engine.list_supported_chandas()}
 
 
 @app.get("/api/v1/modes")
