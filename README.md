@@ -1,313 +1,199 @@
-# ChandaEngine
+# ChandaEngine: Melodic Constrained Sanskrit Recitation
 
-Chanda-Melodic Constrained Sanskrit Recitation  
-IKS Online Hackathon 2026
+ChandaEngine is an advanced Sanskrit prosody engine developed for the IKS Online Hackathon 2026. It generates Sanskrit recitation audio while strictly preserving core prosodic rules (Chandas), including syllable weights (Laghu/Guru), rhythmic groupings (Ganas), and caesura or pauses (Yati).
 
-## Overview
+## Core Features
 
-ChandaEngine generates Sanskrit recitation audio while preserving core prosodic rules.
+- **Linguistic & Metrical Analysis**: 
+  - Devanagari to IAST transliteration normalization.
+  - Accurate syllabification with classical Laghu (1 matra) and Guru (2 matra) classification.
+  - Consonant-cluster lookahead across word boundaries.
+  - Chanda validation against structured pattern definitions, including Vipula variants for Anushtubh and variable syllable meters (Matra-vritta).
+  - Triplet grouping into classical Ganas (ma, na, bha, ya, ra, sa, ta, ja).
+- **Prosody & Audio Synthesis**:
+  - Duration planning based on precise syllable weights.
+  - Pitch planning supporting both Vedic (3-level accents) and Raga Bhairavi melodic contours.
+  - Yati (pause) insertion utilizing prosodic boundary markers.
+  - Sanskrit TTS generation powered by espeak-ng (with -v sa flag) and parselmouth for accurate prosodic modification.
+- **Advanced Validation & Scoring**:
+  - Multi-tiered Chanda scoring and strict violation reporting.
+  - Auto-detection algorithm predicting the top 3 most likely Chandas for any given verse.
+  - Speech-to-Text (STT) validation via the Sarvam API, computing transcription accuracy scores against the generated audio.
+- **Interfaces**:
+  - FastAPI backend providing modular endpoints for recitation and analysis.
+  - Gradio UI for interactive demonstrations and testing.
 
-The pipeline enforces:
+## System Architecture
 
-1. Chandas timing constraints:
-    Laghu = 1 matra, Guru = 2 matras
-2. Melodic contour constraints:
-    Vedic 3-level accents or Raga Bhairavi contour
+The pipeline processes input text through a strict sequence of transformations:
+Input Text -> Transliterator -> Syllabifier (Laghu/Guru) -> Chanda Validator -> Prosody Planner -> TTS Engine (espeak-ng) -> Prosody Modifier (parselmouth) -> Final Audio & Metadata
 
-Input can be Devanagari or IAST. Internal processing is done in IAST.
+---
 
-## Implemented Features
+## Installation & Setup
 
-### Core linguistic and metrical features
+ChandaEngine requires Python 3.10+ and the espeak-ng system dependency to synthesize Sanskrit audio.
 
-1. Devanagari to IAST transliteration normalization
-2. Syllabification with classical Laghu or Guru classification
-3. Consonant-cluster lookahead across word boundaries
-4. Chanda validation against structured pattern definitions
-5. Vipula variant fallback for Anushtubh odd padas
-6. Matra-vritta handling for variable syllable meters such as Arya
-7. Gana grouping in triplets:
-    ma, na, bha, ya, ra, sa, ta, ja
+### 1. Installing 3rd-Party Dependencies (espeak-ng)
 
-### Prosody and audio features
+Because the engine relies heavily on phonetic synthesis, espeak-ng must be installed natively on your operating system and available in your system's PATH.
 
-1. Duration planning from syllable weight
-2. Pitch planning for Vedic mode and Raga Bhairavi mode
-3. Yati pause insertion using yati_positions_in_pada when available
-4. Sanskrit TTS generation via espeak-ng and Sarvam integration path
-5. Visualization output for waveform, pitch contour, and L or G pattern
+#### Windows
+1. Navigate to the official [espeak-ng Releases page](https://github.com/espeak-ng/espeak-ng/releases).
+2. Download the latest Windows installer (e.g., espeak-ng-X.X.X-windows.msi or .exe).
+3. Run the installer and complete the setup. 
+4. **Critical Step**: You must add the installation directory (typically C:\Program Files\eSpeak NG) to your Windows PATH environment variable.
+5. Verify the installation by opening PowerShell and running:
+   `powershell
+   espeak-ng --version
+   `
 
-### Analysis and scoring features
+#### macOS
+Install via Homebrew:
+`ash
+brew install espeak-ng
+`
+Verify the installation:
+`ash
+espeak-ng --version
+`
 
-1. Chanda score and violation reporting
-2. Chanda type awareness:
-    akshara_gana, matra_vritta, vedic_chandas
-3. Top-3 chanda auto-detection by match score
-4. STT-based non-critical validation via Sarvam Speech-to-Text:
-    transcript capture and character-level accuracy score
+#### Linux (Debian/Ubuntu)
+Install via the APT package manager:
+`ash
+sudo apt-get update
+sudo apt-get install -y espeak-ng
+`
+Verify the installation:
+`ash
+espeak-ng --version
+`
 
-### API and UI features
+### 2. Project Setup
 
-1. FastAPI endpoints for recitation and analysis
-2. Gradio UI for interactive demo usage
-3. Supported-chandas metadata endpoint
-4. Rich response payloads including syllables, ganas, chanda metadata, and optional STT metrics
+Once espeak-ng is installed and verified, set up the ChandaEngine project environment.
 
-## Supported Chandas
+1. **Clone the repository**:
+   `ash
+   git clone <your-repo-url>
+   cd chandas-iks-hackathon
+   `
 
-Chanda definitions are loaded from data/chanda_patterns.json.
+2. **Create and activate a virtual environment**:
+   - **Windows**:
+     `powershell
+     py -3 -m venv venv
+     .\venv\Scripts\Activate.ps1
+     `
+   - **macOS / Linux**:
+     `ash
+     python3 -m venv venv
+     source venv/bin/activate
+     `
 
-Current dataset includes 15+ classical entries and supports:
+3. **Install Python dependencies**:
+   `ash
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+   `
 
-1. Fixed akshara-gana meters
-2. Variable matra-vritta entries
-3. Vedic chandas entries
+### 3. Environment Variables
 
-Use GET /api/v1/chandas to inspect the active list with name, type, syllables_per_pada, and notes.
+To enable Speech-to-Text (STT) validation and accuracy scoring, you must provide a Sarvam API key. This step is optional but recommended; the system will gracefully fall back if the key is missing.
 
-## Architecture
+- **Windows (PowerShell)**:
+  `powershell
+  $env:SARVAM_API_KEY="your_api_key_here"
+  `
+  *(To set it permanently, use setx SARVAM_API_KEY "your_api_key_here" and restart your terminal.)*
 
-Input text
-  -> Transliterator
-  -> Syllabifier and LG classifier
-  -> Chanda validator and scorer
-  -> Prosody planner
-  -> TTS engine
-  -> Prosody modifier
-  -> Output audio and annotations
+- **macOS / Linux**:
+  `ash
+  export SARVAM_API_KEY="your_api_key_here"
+  `
 
-Key files:
-
-1. engine.py: main orchestrator
-2. api.py: FastAPI service
-3. app.py: Gradio UI
-4. modules/syllabifier.py: syllable analysis, chanda checks, gana grouping
-5. modules/prosody_planner.py: duration, pitch, yati pause insertion
-6. modules/stt_validator.py: Sarvam STT transcription and accuracy
-
-## Installation Guide
-
-### Prerequisites
-
-1. Python 3.10+
-2. espeak-ng installed on system path
-3. Git
-
-Optional but recommended:
-
-1. A Python virtual environment
-2. SARVAM_API_KEY environment variable for STT validation
-
-### Windows setup (PowerShell)
-
-1. Clone and enter project
-
-    git clone <your-repo-url>
-    cd chandas-iks-hackathon
-
-2. Create and activate venv
-
-    py -3 -m venv venv
-    .\venv\Scripts\Activate.ps1
-
-3. Install Python dependencies
-
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-
-4. Install espeak-ng on Windows
-
-    Install from official releases and ensure espeak-ng is available in PATH.
-    Verify:
-
-    espeak-ng --version
-
-5. Optional: enable STT validation
-
-    setx SARVAM_API_KEY "your_api_key_here"
-
-    Open a new terminal after setx so the variable is available.
-
-### Linux setup
-
-1. Clone and enter project
-
-    git clone <your-repo-url>
-    cd chandas-iks-hackathon
-
-2. Install espeak-ng
-
-    sudo apt-get update
-    sudo apt-get install -y espeak-ng
-
-3. Create environment and install deps
-
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-
-4. Optional STT key
-
-    export SARVAM_API_KEY="your_api_key_here"
-
-### macOS setup
-
-1. Clone and enter project
-
-    git clone <your-repo-url>
-    cd chandas-iks-hackathon
-
-2. Install espeak-ng
-
-    brew install espeak-ng
-
-3. Create environment and install deps
-
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-
-4. Optional STT key
-
-    export SARVAM_API_KEY="your_api_key_here"
+---
 
 ## Usage Guide
 
-### Run tests
+### Starting the FastAPI Server
 
-Windows:
+The primary backend runs on FastAPI and exposes all core functionality.
 
-1. .\venv\Scripts\python.exe tests\test_syllabifier.py
+- **Windows**:
+  `powershell
+  .\venv\Scripts\python.exe api.py
+  `
+- **macOS / Linux**:
+  `ash
+  python api.py
+  `
+The API is served at http://localhost:8000. API documentation (Swagger) is available at http://localhost:8000/docs.
 
-Linux or macOS:
+### Starting the Gradio UI
 
-1. python tests/test_syllabifier.py
+To interact with the engine via a graphical interface, start the Gradio app in a separate terminal (ensure your virtual environment is activated).
 
-### Start API server
+- **Windows**:
+  `powershell
+  .\venv\Scripts\python.exe app.py
+  `
+- **macOS / Linux**:
+  `ash
+  python app.py
+  `
+The Gradio UI is accessible at http://localhost:7860.
 
-Windows:
+### Running Tests
 
-1. .\venv\Scripts\python.exe api.py
+To verify that the underlying Syllabifier and Chanda rule validations are functioning correctly, run the test suite:
 
-Linux or macOS:
+- **Windows**:
+  `powershell
+  .\venv\Scripts\python.exe tests\test_syllabifier.py
+  `
+- **macOS / Linux**:
+  `ash
+  python tests/test_syllabifier.py
+  `
 
-1. python api.py
+---
 
-API base URL:
+## API Reference
 
-1. http://localhost:8000
+### Core Endpoints
 
-### Start Gradio UI
+- POST /api/v1/recite: Generates audio and full prosodic metadata for a given verse.
+- POST /api/v1/analyze: Analyzes text for Chanda matching, Yati, and Ganas without generating audio.
+- GET /api/v1/chandas: Lists all supported classical and Vedic meters.
 
-In a second terminal with the same environment active:
+### Payload Examples
 
-Windows:
+**Analysis Request format**:
+`json
+{
+  "verse": "धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः",
+  "chanda": "anushtubh"
+}
+`
 
-1. .\venv\Scripts\python.exe app.py
+**Standard Response Schema** (Abridged):
+- erse_iast: Normalized internal string.
+- chanda_type / chanda_variant: Specific meter categorization.
+- syllables: Array of parsed syllable objects mapping weights (L/G).
+- ganas: Array of grouped ganas (e.g., ma, na, bha).
+- chanda_score / iolations: Detailed prosodic assessment.
+- chanda_detection: Array of top 3 predicted meters.
+- stt_transcript / stt_accuracy: Output from the Sarvam integration (if enabled).
 
-Linux or macOS:
-
-1. python app.py
-
-UI URL:
-
-1. http://localhost:7860
-
-### Use demo.html
-
-1. Keep API running on localhost:8000
-2. Open demo.html in browser
-
-## API Guide
-
-### Endpoints
-
-1. POST /api/v1/recite
-2. POST /api/v1/analyze
-3. GET /api/v1/chandas
-4. GET /api/v1/modes
-5. GET /api/v1/verses
-6. GET /api/v1/health
-
-### Analyze example (curl)
-
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"verse":"धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः","chanda":"anushtubh"}'
-
-### Analyze example (PowerShell)
-
-$body = @{
-  verse = "धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः"
-  chanda = "anushtubh"
-} | ConvertTo-Json
-
-Invoke-RestMethod \
-  -Uri "http://localhost:8000/api/v1/analyze" \
-  -Method POST \
-  -ContentType "application/json" \
-  -Body $body
-
-### Recite response includes
-
-1. verse_iast
-2. chanda, chanda_type, chanda_variant
-3. syllables and ganas
-4. timing and audio URLs
-5. chanda_score and violations
-6. optional stt_transcript and stt_accuracy
-
-### Analyze response includes
-
-1. verse_iast
-2. chanda, chanda_type, chanda_variant
-3. syllables and ganas
-4. chanda_score and violations
-5. chanda_detection (top 3)
-
-## STT Validation (Sarvam)
-
-STT validation is non-blocking and runs after audio generation in recite().
-
-Behavior:
-
-1. If SARVAM_API_KEY is present and API succeeds, transcript and accuracy are returned
-2. If STT fails, recitation still succeeds and STT fields remain null
-
-## Project Structure
-
-chandas-iks-hackathon/
-  api.py
-  app.py
-  engine.py
-  context.md
-  data/
-     chanda_patterns.json
-     verses.json
-  modules/
-     transliterator.py
-     syllabifier.py
-     prosody_planner.py
-     tts_engine.py
-     prosody_modifier.py
-     stt_validator.py
-  tests/
-     test_syllabifier.py
-  outputs/
+---
 
 ## Troubleshooting
 
-1. espeak-ng not found:
-    install espeak-ng and confirm it is in PATH
-2. Import errors in editor but tests pass:
-    select the project venv interpreter
-3. STT fields are null:
-    check SARVAM_API_KEY and network access
-4. API not reachable from UI:
-    ensure api.py is running on localhost:8000
-
-## License
-
-MIT
+1. **espeak-ng not found error**: 
+   Ensure espeak-ng was installed correctly and the executable path is definitively added to your system's PATH variable. Restart your terminal after adding it.
+2. **Missing dependencies during tests**: 
+   Ensure you are using the precise Python executable located within your virtual environment (e.g., .\venv\Scripts\python.exe) rather than the global Python fallback.
+3. **STT Validation disabled**: 
+   If stt_transcript and stt_accuracy return as 
+ull, ensure your SARVAM_API_KEY is properly exported and valid.
