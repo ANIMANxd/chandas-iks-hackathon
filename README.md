@@ -1,148 +1,313 @@
-# ॐ ChandaEngine
+# ChandaEngine
 
-**Chanda-Melodic Constrained Sanskrit Recitation**  
-IKS Online Hackathon 2026 · Chanakya University
+Chanda-Melodic Constrained Sanskrit Recitation  
+IKS Online Hackathon 2026
 
----
+## Overview
 
-## What It Does
+ChandaEngine generates Sanskrit recitation audio while preserving core prosodic rules.
 
-Modern TTS systems produce Sanskrit that is phonetically correct but rhythmically dead.  
-ChandaEngine enforces two pillars of classical Sanskrit recitation computationally:
+The pipeline enforces:
 
-1. **Chandas** — Guru syllables are held 2× longer than Laghu syllables
-2. **Melodic framework** — pitch follows Vedic 3-level accents or Rāga Bhairavī contour
+1. Chandas timing constraints:
+    Laghu = 1 matra, Guru = 2 matras
+2. Melodic contour constraints:
+    Vedic 3-level accents or Raga Bhairavi contour
 
-Input a Sanskrit verse → get audio that sounds like a trained reciter, not a robot.
+Input can be Devanagari or IAST. Internal processing is done in IAST.
 
----
+## Implemented Features
 
-## Quick Start
+### Core linguistic and metrical features
 
-```bash
-# 1. Clone
-git clone https://github.com/your-repo/chanda-engine
-cd chanda-engine
+1. Devanagari to IAST transliteration normalization
+2. Syllabification with classical Laghu or Guru classification
+3. Consonant-cluster lookahead across word boundaries
+4. Chanda validation against structured pattern definitions
+5. Vipula variant fallback for Anushtubh odd padas
+6. Matra-vritta handling for variable syllable meters such as Arya
+7. Gana grouping in triplets:
+    ma, na, bha, ya, ra, sa, ta, ja
 
-# 2. Install system dependency
-sudo apt-get install espeak-ng        # Linux
-brew install espeak-ng                # macOS
+### Prosody and audio features
 
-# 3. Install Python dependencies
-pip install -r requirements.txt
+1. Duration planning from syllable weight
+2. Pitch planning for Vedic mode and Raga Bhairavi mode
+3. Yati pause insertion using yati_positions_in_pada when available
+4. Sanskrit TTS generation via espeak-ng and Sarvam integration path
+5. Visualization output for waveform, pitch contour, and L or G pattern
 
-# 4. Run tests (no TTS needed)
-python tests/test_syllabifier.py
+### Analysis and scoring features
 
-# 5. Start API
-python api.py                         # http://localhost:8000
+1. Chanda score and violation reporting
+2. Chanda type awareness:
+    akshara_gana, matra_vritta, vedic_chandas
+3. Top-3 chanda auto-detection by match score
+4. STT-based non-critical validation via Sarvam Speech-to-Text:
+    transcript capture and character-level accuracy score
 
-# 6. Start UI (new terminal)
-python app.py                         # http://localhost:7860
+### API and UI features
 
-# OR: open demo.html in browser (connects to API at localhost:8000)
-```
+1. FastAPI endpoints for recitation and analysis
+2. Gradio UI for interactive demo usage
+3. Supported-chandas metadata endpoint
+4. Rich response payloads including syllables, ganas, chanda metadata, and optional STT metrics
 
----
+## Supported Chandas
+
+Chanda definitions are loaded from data/chanda_patterns.json.
+
+Current dataset includes 15+ classical entries and supports:
+
+1. Fixed akshara-gana meters
+2. Variable matra-vritta entries
+3. Vedic chandas entries
+
+Use GET /api/v1/chandas to inspect the active list with name, type, syllables_per_pada, and notes.
 
 ## Architecture
 
-```
-Input (Devanāgarī or IAST)
-    ↓
-[Module 1] Transliterator       indic-transliteration
-    ↓
-[Module 2] Syllabifier          L/G classification + consonant cluster lookahead
-    ↓
-[Module 3] Prosody Planner      duration map + pitch contour
-    ↓
-[Module 4] TTS Engine           espeak-ng Sanskrit voice
-    ↓
-[Module 5] Prosody Modifier     parselmouth duration scaling + pitch manipulation
-    ↓
-Output: .wav + annotation + visualization
-```
+Input text
+  -> Transliterator
+  -> Syllabifier and LG classifier
+  -> Chanda validator and scorer
+  -> Prosody planner
+  -> TTS engine
+  -> Prosody modifier
+  -> Output audio and annotations
 
----
+Key files:
 
-## Supported Frameworks
+1. engine.py: main orchestrator
+2. api.py: FastAPI service
+3. app.py: Gradio UI
+4. modules/syllabifier.py: syllable analysis, chanda checks, gana grouping
+5. modules/prosody_planner.py: duration, pitch, yati pause insertion
+6. modules/stt_validator.py: Sarvam STT transcription and accuracy
 
-| Chanda | Pattern | Status |
-|---|---|---|
-| Anushtubh (Shloka) | 8 syllables/pāda | ✅ Supported |
-| Mandākrāntā | 17 syllables/pāda | ✅ Supported |
+## Installation Guide
 
-| Melodic Mode | Description | Status |
-|---|---|---|
-| Vedic 3-Level | Anudātta / Svarita / Udātta | ✅ Supported |
-| Rāga Bhairavī | Ārohā-avarohā arch | ✅ Supported |
+### Prerequisites
 
----
+1. Python 3.10+
+2. espeak-ng installed on system path
+3. Git
 
-## API Reference
+Optional but recommended:
 
-```
-POST /api/v1/recite     Full pipeline → audio
-POST /api/v1/analyze    L/G analysis only (fast, no TTS)
-GET  /api/v1/chandas    List supported Chandas
-GET  /api/v1/modes      List melodic modes
-GET  /api/v1/verses     Curated verse library
-GET  /api/v1/health     System status
-```
+1. A Python virtual environment
+2. SARVAM_API_KEY environment variable for STT validation
 
-Example:
-```bash
+### Windows setup (PowerShell)
+
+1. Clone and enter project
+
+    git clone <your-repo-url>
+    cd chandas-iks-hackathon
+
+2. Create and activate venv
+
+    py -3 -m venv venv
+    .\venv\Scripts\Activate.ps1
+
+3. Install Python dependencies
+
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+
+4. Install espeak-ng on Windows
+
+    Install from official releases and ensure espeak-ng is available in PATH.
+    Verify:
+
+    espeak-ng --version
+
+5. Optional: enable STT validation
+
+    setx SARVAM_API_KEY "your_api_key_here"
+
+    Open a new terminal after setx so the variable is available.
+
+### Linux setup
+
+1. Clone and enter project
+
+    git clone <your-repo-url>
+    cd chandas-iks-hackathon
+
+2. Install espeak-ng
+
+    sudo apt-get update
+    sudo apt-get install -y espeak-ng
+
+3. Create environment and install deps
+
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+4. Optional STT key
+
+    export SARVAM_API_KEY="your_api_key_here"
+
+### macOS setup
+
+1. Clone and enter project
+
+    git clone <your-repo-url>
+    cd chandas-iks-hackathon
+
+2. Install espeak-ng
+
+    brew install espeak-ng
+
+3. Create environment and install deps
+
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+4. Optional STT key
+
+    export SARVAM_API_KEY="your_api_key_here"
+
+## Usage Guide
+
+### Run tests
+
+Windows:
+
+1. .\venv\Scripts\python.exe tests\test_syllabifier.py
+
+Linux or macOS:
+
+1. python tests/test_syllabifier.py
+
+### Start API server
+
+Windows:
+
+1. .\venv\Scripts\python.exe api.py
+
+Linux or macOS:
+
+1. python api.py
+
+API base URL:
+
+1. http://localhost:8000
+
+### Start Gradio UI
+
+In a second terminal with the same environment active:
+
+Windows:
+
+1. .\venv\Scripts\python.exe app.py
+
+Linux or macOS:
+
+1. python app.py
+
+UI URL:
+
+1. http://localhost:7860
+
+### Use demo.html
+
+1. Keep API running on localhost:8000
+2. Open demo.html in browser
+
+## API Guide
+
+### Endpoints
+
+1. POST /api/v1/recite
+2. POST /api/v1/analyze
+3. GET /api/v1/chandas
+4. GET /api/v1/modes
+5. GET /api/v1/verses
+6. GET /api/v1/health
+
+### Analyze example (curl)
+
 curl -X POST http://localhost:8000/api/v1/analyze \
   -H "Content-Type: application/json" \
-  -d '{"verse": "धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः", "chanda": "anushtubh"}'
-```
+  -d '{"verse":"धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः","chanda":"anushtubh"}'
 
----
+### Analyze example (PowerShell)
+
+$body = @{
+  verse = "धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः"
+  chanda = "anushtubh"
+} | ConvertTo-Json
+
+Invoke-RestMethod \
+  -Uri "http://localhost:8000/api/v1/analyze" \
+  -Method POST \
+  -ContentType "application/json" \
+  -Body $body
+
+### Recite response includes
+
+1. verse_iast
+2. chanda, chanda_type, chanda_variant
+3. syllables and ganas
+4. timing and audio URLs
+5. chanda_score and violations
+6. optional stt_transcript and stt_accuracy
+
+### Analyze response includes
+
+1. verse_iast
+2. chanda, chanda_type, chanda_variant
+3. syllables and ganas
+4. chanda_score and violations
+5. chanda_detection (top 3)
+
+## STT Validation (Sarvam)
+
+STT validation is non-blocking and runs after audio generation in recite().
+
+Behavior:
+
+1. If SARVAM_API_KEY is present and API succeeds, transcript and accuracy are returned
+2. If STT fails, recitation still succeeds and STT fields remain null
 
 ## Project Structure
 
-```
-chanda_engine/
-├── engine.py                 # Main orchestrator
-├── api.py                    # FastAPI layer
-├── app.py                    # Gradio UI
-├── demo.html                 # Standalone demo frontend
-├── modules/
-│   ├── transliterator.py     # Devanāgarī → IAST
-│   ├── syllabifier.py        # L/G classification
-│   ├── prosody_planner.py    # Duration + pitch mapping
-│   ├── tts_engine.py         # espeak-ng wrapper
-│   └── prosody_modifier.py   # parselmouth prosody control
-├── data/
-│   ├── chanda_patterns.json  # L/G patterns per Chanda
-│   └── verses.json           # Curated verse library
-├── tests/
-│   └── test_syllabifier.py   # Unit tests (9/9 passing)
-└── outputs/                  # Generated audio + visualizations
-```
+chandas-iks-hackathon/
+  api.py
+  app.py
+  engine.py
+  context.md
+  data/
+     chanda_patterns.json
+     verses.json
+  modules/
+     transliterator.py
+     syllabifier.py
+     prosody_planner.py
+     tts_engine.py
+     prosody_modifier.py
+     stt_validator.py
+  tests/
+     test_syllabifier.py
+  outputs/
 
----
+## Troubleshooting
 
-## AI Disclosure
-
-This project was built with AI assistance (Claude by Anthropic, GitHub Copilot).  
-All Sanskrit domain logic (Laghu/Guru rules, Chanda patterns, pitch contours) was  
-manually verified against classical sources by team members with Sanskrit background.  
-External sources cited: Pāṇini's Ashtādhyāyī, Chandas Shastra, Vedic recitation guidelines.
-
----
-
-## Team
-
-| Member | Role |
-|---|---|
-| Aniruddha Bhide | Lead architect, core engine, domain logic |
-| [Sanskrit Junior] | Domain QA, verse annotations, pitch verification |
-| [Frontend Member] | Gradio UI, visualization |
-| [Docs Member] | Documentation, video |
-
----
+1. espeak-ng not found:
+    install espeak-ng and confirm it is in PATH
+2. Import errors in editor but tests pass:
+    select the project venv interpreter
+3. STT fields are null:
+    check SARVAM_API_KEY and network access
+4. API not reachable from UI:
+    ensure api.py is running on localhost:8000
 
 ## License
 
-MIT — open source, reproducible, extensible.
+MIT
