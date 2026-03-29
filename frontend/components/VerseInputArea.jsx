@@ -93,13 +93,13 @@ export default function VerseInputArea() {
               </button>
 
               {showExamples && (
-                <div className="absolute right-0 top-6 z-50 w-80 max-h-64 overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm p-3 rounded-[2px]">
+                <div className="absolute right-0 top-6 z-50 w-80 max-h-64 overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm p-3 rounded-none">
                   {availableVerses.map((v, i) => (
                     <button
                       key={i}
                       type="button"
                       onClick={() => handleLoadExample(v)}
-                      className="w-full text-left p-3 hover:bg-[var(--color-active)] transition-colors cursor-pointer rounded-[2px]"
+                      className="w-full text-left p-3 hover:bg-[var(--color-active)] transition-colors cursor-pointer rounded-none"
                     >
                       <span className="text-base font-devanagari text-[var(--color-text-primary)] block leading-relaxed">
                         {v.devanagari || v.verse || v.text || `Verse ${i + 1}`}
@@ -130,7 +130,7 @@ export default function VerseInputArea() {
         onChange={handleChange}
         placeholder="पश्यादित्यान् वसून् रुद्रान्..."
         rows={4}
-        className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[2px] p-6 text-[22px] text-[var(--color-text-primary)] font-devanagari resize-none focus:outline-none focus:border-[var(--color-accent)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-50 transition-colors"
+        className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-none p-6 text-[22px] text-[var(--color-text-primary)] font-devanagari resize-none focus:outline-none focus:border-[var(--color-accent)] placeholder:text-[var(--color-text-muted)] placeholder:opacity-50 transition-colors"
         style={{ minHeight: '160px', lineHeight: '2' }}
         spellCheck={false}
         autoComplete="off"

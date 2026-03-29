@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 /* ── Premium Light Theme Design Tokens (Luxury Editorial Minimalism) ───── */
+@theme {
+  --font-display: 'Cormorant Garamond', serif;
+  --font-label: 'Instrument Sans', sans-serif;
+  --font-devanagari: 'Noto Serif Devanagari', serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
 :root {
   --color-base: #F5F2EC; /* warm ivory, aged manuscript */
   --color-surface: #FDFBF7; /* near white with warmth */
@@ -9,11 +16,6 @@
   --color-text-muted: #8A7F6E;
   --color-border: #E2DDD4; /* barely-there hairlines */
   --color-active: #F0E6D3;
-
-  --font-display: 'Cormorant Garamond', serif;
-  --font-label: 'Instrument Sans', sans-serif;
-  --font-devanagari: 'Noto Serif Devanagari', serif;
-  --font-mono: 'IBM Plex Mono', monospace;
 }
 
 /* ── Base Reset ──────────────────────────────────────────────────────────── */

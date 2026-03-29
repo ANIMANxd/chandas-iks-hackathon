@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
+import { motion } from 'framer-motion';
 
 export default function ActionCenter() {
   const verse = useAppStore((s) => s.verse);
@@ -30,7 +31,14 @@ export default function ActionCenter() {
         `}
       >
         {isSynthesizing ? (
-          <span>Synthesizing...</span>
+          <div className="flex items-center justify-center gap-3">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+              className="w-4 h-4 border-2 border-[var(--color-base)] border-t-transparent rounded-full"
+            />
+            <span>Synthesizing...</span>
+          </div>
         ) : (
           <span>Synthesize & Recite</span>
         )}

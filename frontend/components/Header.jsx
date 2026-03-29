@@ -14,9 +14,6 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-[12px] font-mono text-[var(--color-text-muted)]">
-            v2.0 / Strict Layout
-          </span>
         </div>
       </div>
     </header>
