@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* ── Premium Light Theme Design Tokens (Luxury Editorial Minimalism) ───── */
+:root {
+  --color-base: #F5F2EC; /* warm ivory, aged manuscript */
+  --color-surface: #FDFBF7; /* near white with warmth */
+  --color-text-primary: #1A1208; /* near-black with warm undertone */
+  --color-accent: #8B4513; /* burnt sienna / saffron-adjacent */
+  --color-text-muted: #8A7F6E;
+  --color-border: #E2DDD4; /* barely-there hairlines */
+  --color-active: #F0E6D3;
+
+  --font-display: 'Cormorant Garamond', serif;
+  --font-label: 'Instrument Sans', sans-serif;
+  --font-devanagari: 'Noto Serif Devanagari', serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* ── Base Reset ──────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 0px; /* Sharp corners globally */
+}
+
+::selection {
+  background: var(--color-active);
+  color: var(--color-text-primary);
+}
+
+html, body {
+  background: var(--color-base);
+  color: var(--color-text-primary);
+}
+
+/* ── Range Slider ────────────────────────────────────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 2px;
+  width: 100%;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-track {
+  background: var(--color-border);
+  height: 2px;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: none;
+  box-shadow: none;
+  margin-top: -4px; /* Centers the 10px thumb on a 2px track */
+  transition: transform 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-track {
+  background: var(--color-border);
+  height: 2px;
+  width: 100%;
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: none;
+  box-shadow: none;
+}
+
+/* ── Wavesurfer Overrides ────────────────────────────────────────────────── */
+.wavesurfer-container {
+  border-radius: 0px; /* Removed round corners */
+  overflow: hidden;
+}
