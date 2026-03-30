@@ -21,7 +21,7 @@ ChandaEngine is an advanced Sanskrit prosody engine developed for the IKS Online
   - Speech-to-Text (STT) validation via the Sarvam API, computing transcription accuracy scores against the generated audio.
 - **Interfaces**:
   - FastAPI backend providing modular endpoints for recitation and analysis.
-  - Gradio UI for interactive demonstrations and testing.
+  - A modern, highly responsive Next.js frontend GUI replacing the earlier Gradio interface for deep interactive demonstrations and visual analytics.
 
 ## System Architecture
 
@@ -97,7 +97,21 @@ Once espeak-ng is installed and verified, set up the ChandaEngine project enviro
    pip install -r requirements.txt
    `
 
-### 3. Environment Variables
+### 3. Frontend Environment Setup (Next.js)
+
+The modern frontend is built using Next.js (React). It strictly handles the presentation and API calls to the local engine.
+
+1. **Navigate to the frontend directory**:
+   ```bash
+   cd frontend
+   ```
+   
+2. **Install Node.js dependencies**:
+   ```bash
+   npm install
+   ```
+
+### 4. Environment Variables
 
 To enable Speech-to-Text (STT) validation and accuracy scoring, you must provide a Sarvam API key. This step is optional but recommended; the system will gracefully fall back if the key is missing.
 
