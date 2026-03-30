@@ -16,21 +16,31 @@ class STTValidator:
         """
         Send audio to Sarvam STT and return transcript text.
         """
-        with open(audio_path, 'rb') as f:
-            resp = requests.post(
-                'https://api.sarvam.ai/speech-to-text',
-                headers={'API-Subscription-Key': self.api_key},
-                files={'file': ('audio.wav', f, 'audio/wav')},
-                data={
-                    'language_code': 'hi-IN',
-                    'model': 'saarika:v2'
-                },
-                timeout=30
-            )
-
-        resp.raise_for_status()
-        transcript = resp.json().get('transcript', '')
-        return transcript
+        import os
+        print(f"[STT] Attempting transcription of: {audio_path}")
+        print(f"[STT] File exists: {os.path.exists(audio_path)}")
+        print(f"[STT] API key present: {bool(self.api_key)}")
+        
+        try:
+            import requests
+            with open(audio_path, 'rb') as f:
+                resp = requests.post(
+                    'https://api.sarvam.ai/speech-to-text',
+                    headers={'API-Subscription-Key': self.api_key},
+                    files={'file': ('audio.wav', f, 'audio/wav')},
+                    data={
+                        'language_code': 'hi-IN',
+                        'model': 'saarika:v2.5'
+                    },
+                    timeout=30
+                )
+            print(f"[STT] Response status: {resp.status_code}")
+            print(f"[STT] Response body: {resp.text[:200]}")
+            resp.raise_for_status()
+            return resp.json().get('transcript', '')
+        except Exception as e:
+            print(f"[STT] Error: {e}")
+            return None
 
     def compute_accuracy(
         self,

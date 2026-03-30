@@ -92,7 +92,7 @@ class ReciteRequest(BaseModel):
         description="Melodic/pitch framework to apply"
     )
     base_pitch_hz: Optional[float] = Field(
-        default=None,
+        default=200.0,
         description="Speaker base pitch in Hz. Female~220, Male~120. Default: 200.",
         ge=80.0,
         le=400.0
