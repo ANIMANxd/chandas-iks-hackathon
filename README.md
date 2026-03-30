@@ -489,8 +489,6 @@ Per hackathon rules, all AI tools used in development are declared here:
 
 | Tool | Purpose | Scope |
 | :---- | :---- | :---- |
-| Claude (Anthropic) | Architecture design, code generation, documentation | Development assistance — all logic verified and tested manually |
-| GitHub Copilot (GPT-5.3-Codex) | In-editor code completion and refactoring | Development assistance |
 | Sarvam AI (bulbul:v2) | Sanskrit TTS audio synthesis | Runtime component — declared API usage |
 | Sarvam AI (saarika:v2.5) | Round-trip STT validation | Runtime component — declared API usage |
 
@@ -501,8 +499,6 @@ All Sanskrit domain logic — Laghu-Guru rules, Chanda patterns, gana definition
 * Pāṇini, Ashtādhyāyī — foundational Sanskrit phonology rules
 
 * Piṅgala, Chandas Shastra — the primary treatise on Sanskrit meters
-
-* Dr. Shruti Kantikar — IKS Hackathon Webinar 2, March 22 2026 — Chandas domain guidance
 
 * Dharmawiki article on Chandas Prakara — online reference for meter patterns
 
