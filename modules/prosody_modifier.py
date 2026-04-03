@@ -27,6 +27,52 @@ class ProsodyModifier:
         os.makedirs(output_dir, exist_ok=True)
         self._temp_dir = tempfile.mkdtemp(prefix='chanda_prosody_')
 
+    def generate_melodic_reference_track(self, planned: list, output_path: str) -> str:
+        """Generate a pure sine-wave melodic guide track from planned durations and pitches."""
+        try:
+            sr = 22050
+            all_samples = []
+
+            for p in planned:
+                duration_s = p.duration_ms / 1000.0
+                sample_count = int(sr * duration_s)
+                if sample_count <= 0:
+                    continue
+
+                t = np.linspace(0, duration_s, sample_count, endpoint=False)
+                # Base frequency (The fundamental note)
+                wave = 0.4 * np.sin(2 * np.pi * p.pitch_hz * t)
+
+                # Add 1st harmonic (One octave up) to give it a "flute" feel
+                wave += 0.2 * np.sin(2 * np.pi * (p.pitch_hz * 2) * t)
+
+                # Add 2nd harmonic (A perfect fifth above the octave) for warmth
+                wave += 0.1 * np.sin(2 * np.pi * (p.pitch_hz * 3) * t)
+
+                # 10ms fade-in/out avoids clicks at note boundaries.
+                fade_samples = int(sr * 0.01)
+                fade_samples = min(fade_samples, len(wave) // 2)
+                if fade_samples > 0:
+                    fade_in = np.linspace(0.0, 1.0, fade_samples, endpoint=True)
+                    fade_out = np.linspace(1.0, 0.0, fade_samples, endpoint=True)
+                    wave[:fade_samples] *= fade_in
+                    wave[-fade_samples:] *= fade_out
+
+                all_samples.append(wave.astype(np.float32))
+
+            melodic_reference = (
+                np.concatenate(all_samples).astype(np.float32)
+                if all_samples
+                else np.zeros(1, dtype=np.float32)
+            )
+
+            reference_path = os.path.splitext(output_path)[0] + '_melodic_reference.wav'
+            sf.write(reference_path, melodic_reference, sr)
+            return reference_path
+        except Exception as e:
+            print(f"[ProsodyModifier] Warning: melodic reference generation failed: {e}")
+            return output_path
+
     def concatenate_with_gaps(
         self,
         segments: list[np.ndarray],

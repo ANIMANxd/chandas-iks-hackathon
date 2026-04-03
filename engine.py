@@ -163,6 +163,11 @@ class ChandaEngine:
         audio_path = os.path.join(self.output_dir, output_filename)
         import shutil
         shutil.copy(generated_path, audio_path)
+        reference_track_path = self.prosody_modifier.generate_melodic_reference_track(
+            planned=planned,
+            output_path=audio_path
+        )
+        raw_audio = reference_track_path
 
         # ── Step 7: Generate visualization ────────────────────────────────
         viz_path = None

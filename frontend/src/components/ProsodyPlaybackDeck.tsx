@@ -1,62 +1,19 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useStore } from '@/store/useStore';
-import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const ProsodyPlaybackDeck = () => {
   const { synthesisResult, currentPlaybackTimeMs, setCurrentPlaybackTimeMs } = useStore();
-  const waveformRef = useRef<HTMLDivElement>(null);
-  const wavesurferRef = useRef<WaveSurfer | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  useEffect(() => {
-    if (!synthesisResult || !waveformRef.current) return;
-
-    // We make sure the URL is absolute if it's relative
-    const audioUrl = synthesisResult.audio_url.startsWith('http') 
-      ? synthesisResult.audio_url 
-      : `http://localhost:8000${synthesisResult.audio_url}`;
-
-    wavesurferRef.current = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor: 'rgba(224, 230, 237, 0.2)',
-      progressColor: '#45A29E',
-      cursorColor: '#F2A900',
-      barWidth: 2,
-      barGap: 1,
-      barRadius: 2,
-      height: 80,
-      url: audioUrl,
-    });
-
-    wavesurferRef.current.on('audioprocess', (currentTime) => {
-      setCurrentPlaybackTimeMs(currentTime * 1000);
-    });
-
-    wavesurferRef.current.on('play', () => setIsPlaying(true));
-    wavesurferRef.current.on('pause', () => setIsPlaying(false));
-    wavesurferRef.current.on('finish', () => setIsPlaying(false));
-
-    return () => {
-      if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
-      }
-    };
-  }, [synthesisResult, setCurrentPlaybackTimeMs]);
 
   if (!synthesisResult) return null;
 
-  const togglePlayPause = () => {
-    wavesurferRef.current?.playPause();
+  const toAbsoluteUrl = (url: string) => {
+    return url.startsWith('http') ? url : 'http://localhost:8000' + url;
   };
 
-  const handleReset = () => {
-    wavesurferRef.current?.stop();
-    setCurrentPlaybackTimeMs(0);
-  };
+  const audioUrl = toAbsoluteUrl(synthesisResult.audio_url);
 
   // Calculate which syllable is currently active based on cumulative duration
   let cumTime = 0;
@@ -120,26 +77,27 @@ export const ProsodyPlaybackDeck = () => {
              </div>
           </div>
         )}
-      </div>
 
-      <div className="relative z-10 w-full bg-[#0a0c12] rounded-xl p-3 border border-[#1a1d2d] mt-auto shrink-0">
-         <div ref={waveformRef} className="w-full mb-2" />
-         
-         <div className="flex justify-center items-center gap-4">
-            <button 
-                onClick={handleReset}
-                className="p-2 rounded-full hover:bg-surface text-primary/60 hover:text-primary transition-colors hover:rotate-[-45deg] duration-300"
-            >
-                <RotateCcw size={18} />
-            </button>
-            <button 
-                onClick={togglePlayPause}
-                className="w-12 h-12 rounded-full bg-primary text-void flex items-center justify-center hover:scale-105 hover:shadow-[0_0_25px_rgba(224,230,237,0.4)] transition-all pl-1"
-                style={{ paddingLeft: isPlaying ? '0' : '3px' }}
-            >
-                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-            </button>
-         </div>
+        {/* Single-Track Audio Playback */}
+        <div className="w-full flex flex-col items-start gap-2 pt-2 border-t border-[#2a2d3d] mt-2">
+          <div className="w-full bg-[#161b22] border border-[#2a2d3d] rounded-xl p-3 shadow-inner">
+            <h5 className="font-mono text-[11px] text-primary uppercase tracking-[0.14em] flex items-center gap-2">
+              <span className="text-[#45A29E]">{'[>]'}</span> AUDIO PLAYBACK (SARVAM AI)
+            </h5>
+            <p className="text-[11px] text-primary/55 mt-1 mb-3">
+              Baseline acoustic model with flawless phonetic rendering.
+            </p>
+            <div className="rounded-lg border border-[#30374a] bg-[#0d1117] p-2">
+              <audio
+                controls
+                className="w-full h-10 accent-[#45A29E]"
+                src={audioUrl}
+                onTimeUpdate={(e) => setCurrentPlaybackTimeMs(e.currentTarget.currentTime * 1000)}
+                onEnded={() => setCurrentPlaybackTimeMs(0)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
     </motion.div>

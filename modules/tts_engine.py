@@ -37,6 +37,8 @@ class TTSEngine:
 
     SAMPLE_RATE = 22050
     API_URL = "https://api.sarvam.ai/text-to-speech"
+    SARVAM_MODEL = "bulbul:v3"
+    SARVAM_SPEAKER = "suhani"
 
     def __init__(self, voice: str = "sa", speed: int = 100, api_key: str | None = None):
         # Keep voice/speed args for backward compatibility with callers.
@@ -80,31 +82,78 @@ class TTSEngine:
             "API-Subscription-Key": self.api_key,
             "Content-Type": "application/json",
         }
-        payload = {
+        base_payload = {
             "inputs": [text],
             "target_language_code": "hi-IN",
-            "speaker": "manisha",
-            "pitch": pitch,
             "pace": pace,
-            "loudness": 1.5,
             "speech_sample_rate": 22050,
             "enable_preprocessing": False,
-            "model": "bulbul:v2",
+            "model": self.SARVAM_MODEL,
         }
 
-        try:
-            response = requests.post(self.API_URL, headers=headers, json=payload, timeout=45)
-            response.raise_for_status()
-            body = response.json()
-            audio_b64 = body.get("audios", [None])[0]
-            if not audio_b64:
-                return False
-            wav_bytes = base64.b64decode(audio_b64)
-            with open(output_path, "wb") as f:
-                f.write(wav_bytes)
-            return True
-        except Exception:
-            return False
+        # Bulbul v3 currently does not support pitch/loudness knobs.
+        if not self.SARVAM_MODEL.startswith("bulbul:v3"):
+            base_payload["pitch"] = pitch
+            base_payload["loudness"] = 1.5
+
+        # Try the fully specified request first, then a compatibility variant
+        # for accounts where speaker routing differs.
+        payload_variants = [
+            {**base_payload, "speaker": self.SARVAM_SPEAKER},
+            base_payload,
+        ]
+
+        last_error = None
+
+        for payload in payload_variants:
+            try:
+                response = requests.post(self.API_URL, headers=headers, json=payload, timeout=45)
+                if not response.ok:
+                    last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+                    continue
+
+                body = response.json()
+                audio_b64 = self._extract_audio_b64(body)
+                if not audio_b64:
+                    last_error = "No audio field in Sarvam response"
+                    continue
+
+                if audio_b64.startswith("data:") and "," in audio_b64:
+                    audio_b64 = audio_b64.split(",", 1)[1]
+
+                wav_bytes = base64.b64decode(audio_b64)
+                with open(output_path, "wb") as f:
+                    f.write(wav_bytes)
+                return True
+            except Exception as e:
+                last_error = str(e)
+
+        if last_error:
+            print(f"[TTSEngine] Sarvam Bulbul v3 synthesis failed: {last_error}")
+        return False
+
+    def _extract_audio_b64(self, body: dict) -> str | None:
+        """Extract base64 audio from known Sarvam response variants."""
+        if not isinstance(body, dict):
+            return None
+
+        audios = body.get("audios")
+        if isinstance(audios, list) and audios:
+            first = audios[0]
+            if isinstance(first, str):
+                return first
+            if isinstance(first, dict):
+                for key in ("audio", "audio_base64", "audioContent"):
+                    value = first.get(key)
+                    if isinstance(value, str) and value:
+                        return value
+
+        for key in ("audio", "audio_base64", "audioContent"):
+            value = body.get(key)
+            if isinstance(value, str) and value:
+                return value
+
+        return None
 
     def _tone_fallback(self, text: str, output_path: str, duration_ms: float = 2500):
         vowel_freqs = {
